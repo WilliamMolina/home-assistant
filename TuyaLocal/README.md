@@ -5,6 +5,8 @@ Changes from above-mentioned Tuya custom component\pytuya library:
 - pytuya: Listener thread (1 thread per device) so device updates are immediately reflected in HA
 - pytuya: Retries when connecting\re-connecting and updating state
 - HA: Support for Oil Diffusers and Humidifiers based on Tuya platform (via TuyaLocal switch custom component)
+  - Oil Diffusers: expose mist mode as attribute, add service to set mist mode
+  - Humidifiers: expose fog level, led light setting and water low indicator as attributes
 - HA: Support for Tuya RGB bulbs and dimmers (via TuyaLocal light custom component)
 
 These changes are very significant modifications for HA custom component and pytuya library and, as such, aren't really mergeable back
@@ -43,4 +45,21 @@ light:
     device_id: 88272017ecfabc1e3e95
     device_type: bulb
     name: Office Lamp 1
+```
+
+Automation example to set mist mode:
+
+```yaml
+- alias: Turn on Kitchen oil diffuser at 6pm
+  trigger:
+    platform: time
+    at: '18:00:00'
+  action:
+    - service: switch.turn_on
+      entity_id: switch.kitchen_essential_oil_diffuser
+    # set it to intermittent mist mode
+    - service: tuyalocal.set_diffuser_mist_mode
+      data:
+        entity_id: switch.kitchen_essential_oil_diffuser
+        mode: 'intermittent'    # Can also be 'continuous' or 'off'
 ```

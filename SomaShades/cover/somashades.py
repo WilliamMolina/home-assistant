@@ -7,6 +7,7 @@ import json
 import voluptuous as vol
 import requests
 import time
+import threading
 
 from homeassistant.const import (ATTR_BATTERY_LEVEL)
 from homeassistant.components.cover import (CoverDevice, PLATFORM_SCHEMA, SUPPORT_SET_POSITION, SUPPORT_OPEN, SUPPORT_CLOSE, SUPPORT_STOP, ATTR_POSITION)
@@ -30,6 +31,8 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
 })
 
 API_BASE_URL = None
+
+API_LOCK = threading.Lock()
 
 def setup_platform(hass, config, add_devices, discovery_info=None):
     """Set up of the Soma Shades devices."""
@@ -56,6 +59,8 @@ class SomaShadeDevice(CoverDevice):
 
         self._position = None
         self._battery_level = 0
+
+        self._failed_updates_counter = 0
 
     @property
     def should_poll(self):
@@ -150,10 +155,19 @@ class SomaShadeDevice(CoverDevice):
 
             _LOGGER.debug("{}: Position={}, battery level={}".format(self._friendly_name, self._position, self._battery_level))
 
+            self._failed_updates_counter = 0
+
         except Exception as err:
-            _LOGGER.error("{}: Update error ({})".format(self._friendly_name, err))
+            self._failed_updates_counter += 1
+            # Log an error if we failed 3 times in a row, otherwise log a warning
+            if self._failed_updates_counter == 3:
+                _LOGGER.error("{}: Multiple updates failed - error ({})".format(self._friendly_name, err))
+            else:
+                _LOGGER.warning("{}: Update error ({})".format(self._friendly_name, err))
 
     def SendRequest(self, url):
+
+        API_LOCK.acquire()
 
         _LOGGER.debug("{}: Sending GET to {}".format(self._friendly_name, url))
         resp = requests.get(url)
@@ -166,5 +180,6 @@ class SomaShadeDevice(CoverDevice):
         if resp.status_code != 200:
             _LOGGER.error('{}: GET {} failed with status {}'.format(self._friendly_name, url, resp.status_code))
 
-        return resp
+        API_LOCK.release()
 
+        return resp

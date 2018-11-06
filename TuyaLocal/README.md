@@ -8,6 +8,6 @@ Changes from above-mentioned Tuya custom component\pytuya library:
 - HA: Support for Tuya RGB bulbs and dimmers (via TuyaLocal light custom component)
 
 These changes are very significant modifications for HA custom component and pytuya library and, as such, aren't really mergeable back
-to those repos (and vice versa) in any meaningful way.
+to those repos (and vice versa) in any meaningful way.<br/><br/>
 The changes also disable support for tuya devices with multiple switches (e.g. power strips, 2-socket devices, etc) primarily because
 I didn't bother maintaining that functionality since I don't have any such devices.

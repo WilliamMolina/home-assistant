@@ -164,11 +164,10 @@ class MoodoDevice(Light):
                 break
             except Exception as err:
                 if x == (MAX_RETRIES - 1):
-                    raise
-                if resp is not None:
-                    _LOGGER.warning('GET {} failed with status {}, error: {}. Will retry'.format(self._API_BOX_URL, resp.status_code, resp.json()["error"]))
-                else:
-                    _LOGGER.warning('GET {} failed with exception {}. Will retry'.format(self._API_BOX_URL, err))
+                    _LOGGER.error('GET {} failed with exception {}'.format(self._API_BOX_URL, err))
+                    return      # Just return out, state will be left as what it was previously
+
+                _LOGGER.warning('GET {} failed with exception {}. Will retry'.format(self._API_BOX_URL, err))
 
         self._data = resp.json()
         self._available = self._data["box"]["is_online"]

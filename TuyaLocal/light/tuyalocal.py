@@ -142,7 +142,7 @@ class TuyaDevice(Light):
     def turn_off(self, **kwargs):
         for i in range(3): self._device.set_status(False)
 
-    async def async_update(self):
+    def update(self):
         """Retrieve latest state."""
         self._device.async_status()
         return True

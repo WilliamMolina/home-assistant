@@ -32,7 +32,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
 
 API_BASE_URL = None
 
-API_LOCK = threading.Lock()
+UPDATE_INTERVAL = 300
 
 def setup_platform(hass, config, add_devices, discovery_info=None):
     """Set up of the Soma Shades devices."""
@@ -41,6 +41,9 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
 
     API_BASE_URL = "http://" + config.get(CONF_CONTROLLER) + ":8080/"
 
+    # create the update thread
+    update_thread = UpdateThread()
+
     # Get the shades from config
     for device, device_config in config[CONF_COVERS].items():
         friendly_name = device_config.get(CONF_FRIENDLY_NAME, device)
@@ -48,6 +51,32 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
 
         shadeDevice = SomaShadeDevice(device, mac, friendly_name)
         add_devices([shadeDevice])
+
+        # Add it to the update thread
+        update_thread.add_device(shadeDevice)
+
+    # Run the update thread
+    update_thread.start()
+
+class UpdateThread(threading.Thread):
+    def __init__(self):
+        threading.Thread.__init__(self)
+        self.name = "SomaShades Update Thread"
+        self._devices = []
+
+    def add_device(self, device):
+        self._devices.append(device)
+
+    def run(self):
+        """
+        Runs the update thread
+        """
+
+        while(True):
+            for device in self._devices:
+                device.update_state()
+
+            time.sleep(UPDATE_INTERVAL)
 
 class SomaShadeDevice(CoverDevice):
     
@@ -64,7 +93,7 @@ class SomaShadeDevice(CoverDevice):
 
     @property
     def should_poll(self):
-        return True
+        return False
 
     @property
     def name(self):
@@ -122,12 +151,18 @@ class SomaShadeDevice(CoverDevice):
 
         self._position = 0
 
+        # Tell HASS to update
+        self.schedule_update_ha_state()
+
     def open_cover(self, **kwargs):
         # Move up
         url = API_BASE_URL + "moveup/" + self._mac
         self.SendRequest(url)
 
         self._position = 100
+
+        # Tell HASS to update
+        self.schedule_update_ha_state()
 
     def set_cover_position(self, **kwargs):
         # Set position
@@ -136,12 +171,19 @@ class SomaShadeDevice(CoverDevice):
         
         self._position = kwargs[ATTR_POSITION]
 
+        # Tell HASS to update
+        self.schedule_update_ha_state()
+
     def stop_cover(self, **kwargs):
         # Stop
         url = API_BASE_URL + "stop/" + self._mac
         self.SendRequest(url)
 
-    def update(self):
+    #def update(self):
+    #    """Retrieve latest state. Not needed since updates are handled asynchronously"""
+    #   return True
+
+    def update_state(self):
         
         get_position_url = API_BASE_URL + "getposition/" + self._mac 
         get_battery_url = API_BASE_URL + "getbattery/" + self._mac
@@ -157,6 +199,9 @@ class SomaShadeDevice(CoverDevice):
 
             self._failed_updates_counter = 0
 
+            # Tell HASS to update
+            self.schedule_update_ha_state()
+
         except Exception as err:
             self._failed_updates_counter += 1
             # Log an error if we failed 3 times in a row, otherwise log a warning
@@ -167,19 +212,15 @@ class SomaShadeDevice(CoverDevice):
 
     def SendRequest(self, url):
 
-        API_LOCK.acquire()
-
         _LOGGER.debug("{}: Sending GET to {}".format(self._friendly_name, url))
-        resp = requests.get(url)
+        resp = requests.get(url, timeout=10)
 
         if resp.status_code != 200:
             # Something went wrong, try again
             _LOGGER.warning('{}: GET {} failed with status {}, retrying'.format(self._friendly_name, url, resp.status_code))
-            resp = requests.get(url)
+            resp = requests.get(url, timeout=10)
 
         if resp.status_code != 200:
             _LOGGER.error('{}: GET {} failed with status {}'.format(self._friendly_name, url, resp.status_code))
-
-        API_LOCK.release()
 
         return resp
